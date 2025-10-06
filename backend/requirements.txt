@@ -2,3 +2,7 @@ fastapi
 uvicorn
 python-dotenv
 pydantic
+pinecone-client
+langchain
+sentence-transformers
+pypdf

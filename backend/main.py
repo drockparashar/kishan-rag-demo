@@ -1,7 +1,12 @@
-from fastapi import FastAPI, Request
+
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+import os
+import pypdf
+from pinecone_service import upsert_document, query_index
 
 app = FastAPI()
 
@@ -17,10 +22,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+load_dotenv()
+
 class ChatRequest(BaseModel):
     question: str
 
+@app.post("/api/upload")
+async def upload_pdf(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith('.pdf'):
+        return JSONResponse(status_code=400, content={"error": "Only PDF files are supported."})
+    try:
+        pdf_reader = pypdf.PdfReader(file.file)
+        text = "\n".join(page.extract_text() or "" for page in pdf_reader.pages)
+        num_chunks = upsert_document(text)
+        return {"message": f"PDF uploaded and {num_chunks} chunks upserted to Pinecone."}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    answer = f"This is a placeholder answer for your question: {request.question}"
-    return JSONResponse(content={"answer": answer})
+    try:
+        chunks = query_index(request.question, top_k=3)
+        answer = " ... ".join(chunks)
+        return {"answer": answer}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
