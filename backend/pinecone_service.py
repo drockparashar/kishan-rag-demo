@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
@@ -10,7 +10,15 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 
-pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
+pc = Pinecone(api_key=PINECONE_API_KEY)
+
+# Parse environment for cloud/region
+if PINECONE_ENVIRONMENT and "-" in PINECONE_ENVIRONMENT:
+    cloud, region = PINECONE_ENVIRONMENT.split("-", 1)
+else:
+    cloud, region = "aws", "us-east-1"
+
+pc = Pinecone(api_key=PINECONE_API_KEY)
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -19,10 +27,17 @@ text_splitter = RecursiveCharacterTextSplitter(
     chunk_overlap=50
 )
 
+
 def get_or_create_index():
-    if PINECONE_INDEX_NAME not in pinecone.list_indexes():
-        pinecone.create_index(PINECONE_INDEX_NAME, dimension=384, metric="cosine")
-    return pinecone.Index(PINECONE_INDEX_NAME)
+    index_names = pc.list_indexes().names()
+    if PINECONE_INDEX_NAME not in index_names:
+        pc.create_index(
+            name=PINECONE_INDEX_NAME,
+            dimension=384,
+            metric="cosine",
+            spec=ServerlessSpec(cloud=cloud, region=region)
+        )
+    return pc.Index(PINECONE_INDEX_NAME)
 
 index = get_or_create_index()
 

@@ -2,7 +2,8 @@ fastapi
 uvicorn
 python-dotenv
 pydantic
-pinecone-client
+pinecone
 langchain
 sentence-transformers
 pypdf
+google-generativeai
