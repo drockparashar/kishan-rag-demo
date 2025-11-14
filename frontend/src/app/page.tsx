@@ -1,15 +1,29 @@
 "use client";
 import React, { useRef, useState } from "react";
 
+type Source = {
+  text: string;
+  doc_name?: string;
+  doc_url?: string;
+  chunk_index?: number;
+};
+
+type Message = {
+  sender: string;
+  text: string;
+  sources?: Source[];
+};
+
 export default function Home() {
   // File upload state
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [docUrl, setDocUrl] = useState("");
 
   // Chat state
-  const [messages, setMessages] = useState([
-    { sender: "bot", text: "Hello! Upload a PDF or ask me anything." },
+  const [messages, setMessages] = useState<Message[]>([
+    { sender: "bot", text: "Hello! ask me anything about rice crop." },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -25,6 +39,9 @@ export default function Home() {
     const file = fileInputRef.current.files[0];
     const formData = new FormData();
     formData.append("file", file);
+    if (docUrl) {
+      formData.append("doc_url", docUrl);
+    }
     try {
       const res = await fetch("http://localhost:8000/api/upload", {
         method: "POST",
@@ -60,7 +77,7 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "Could not get an answer");
       setMessages((msgs) => [
         ...msgs,
-        { sender: "bot", text: data.answer },
+        { sender: "bot", text: data.answer, sources: data.sources },
       ]);
     } catch (err: any) {
       setMessages((msgs) => [
@@ -87,6 +104,14 @@ export default function Home() {
               className="file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-2 w-full text-gray-800 placeholder-gray-500"
               required
             />
+            <input
+              type="url"
+              value={docUrl}
+              onChange={e => setDocUrl(e.target.value)}
+              placeholder="Document URL (required)"
+              className="mb-2 w-full rounded border px-3 py-2 text-sm text-gray-800 placeholder-gray-500"
+              required
+            />
             <button
               type="submit"
               className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition disabled:opacity-60"
@@ -111,14 +136,38 @@ export default function Home() {
                 key={idx}
                 className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div
-                  className={`px-4 py-2 rounded-lg max-w-[80%] text-sm shadow-sm ${
-                    msg.sender === "user"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-800"
-                  }`}
-                >
-                  {msg.text}
+                <div className="w-full">
+                  <div
+                    className={`px-4 py-2 rounded-lg max-w-[80%] text-sm shadow-sm ${
+                      msg.sender === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-800"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                  {/* Show sources if present and this is a bot message */}
+                  {msg.sender === "bot" && Array.isArray(msg.sources) && msg.sources.length > 0 && (
+                    <div className="mt-2 p-2 bg-gray-100 rounded">
+                      <h4 className="font-semibold text-xs text-gray-600">Retrieved Context:</h4>
+                      <ul className="list-disc pl-4 mt-1">
+                        {msg.sources.map((source: Source, sidx: number) => (
+                          <li key={sidx} className="text-xs text-gray-500 italic p-1">
+                            <div>"{source.text}"</div>
+                            <div>
+                              <span className="font-semibold">Source:</span> {source.doc_name}
+                              {source.doc_url && (
+                                <>
+                                  {" | "}
+                                  <a href={source.doc_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View Document</a>
+                                </>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
