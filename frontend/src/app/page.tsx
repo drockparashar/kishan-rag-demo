@@ -1,5 +1,6 @@
 "use client";
 import React, { useRef, useState } from "react";
+import ReactMarkdown from 'react-markdown';
 
 type Source = {
   text: string;
@@ -15,6 +16,7 @@ type Message = {
 };
 
 export default function Home() {
+  const [showSources, setShowSources] = useState<{ [key: number]: boolean }>({});
   // File upload state
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -173,92 +175,63 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col items-center p-2 sm:p-6">
-      <div className="w-full max-w-md space-y-6">
-        {/* File Upload Section */}
-        <section className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-          <h2 className="text-lg font-semibold mb-2 text-gray-800">Upload PDF Document</h2>
-          <form className="flex flex-col items-center w-full" onSubmit={handleFileUpload}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              className="file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-2 w-full text-gray-800 placeholder-gray-500"
-              required
-            />
-            <input
-              type="url"
-              value={docUrl}
-              onChange={e => setDocUrl(e.target.value)}
-              placeholder="Document URL (required)"
-              className="mb-2 w-full rounded border px-3 py-2 text-sm text-gray-800 placeholder-gray-500"
-              required
-            />
-            {uploading && (
-              <div className="w-full mb-2">
-                <div className="h-2 bg-gray-200 rounded">
-                  <div
-                    className="h-2 bg-blue-500 rounded"
-                    style={{ width: `${uploadProgress}%`, transition: 'width 0.2s' }}
-                  ></div>
-                </div>
-                <div className="text-xs text-gray-600 mt-1 text-center">{uploadProgress}%</div>
-              </div>
-            )}
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition disabled:opacity-60"
-              disabled={uploading}
-            >
-              {uploading ? "Uploading..." : "Upload"}
-            </button>
-          </form>
-          {uploadSuccess && (
-            <p className="text-green-600 mt-2">Upload successful!</p>
-          )}
-          {uploadError && (
-            <p className="text-red-600 mt-2">{uploadError}</p>
-          )}
-        </section>
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-0">
+      <div className="w-full h-screen flex flex-col items-center justify-center">
 
         {/* Chat Section */}
-  <section className="bg-white rounded-xl shadow flex flex-col h-[500px] sm:h-[600px]">
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <section className="flex flex-col flex-1 w-full max-w-4xl h-full bg-white rounded-xl shadow mt-4 mb-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex w-full ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div className="w-full">
+                <div className={`max-w-[75%] w-fit ${msg.sender === "user" ? "ml-auto" : "mr-auto"}`}>
                   <div
-                    className={`px-4 py-2 rounded-lg max-w-[80%] text-sm shadow-sm ${
+                    className={`px-4 py-2 rounded-2xl shadow-sm break-words ${
                       msg.sender === "user"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-800"
+                        ? "bg-blue-600 text-white text-right text-lg leading-relaxed"
+                        : "bg-gray-200 text-gray-800 prose prose-lg leading-relaxed text-left"
                     }`}
                   >
-                    {msg.text}
+                    {msg.sender === "bot" ? (
+                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    ) : (
+                      msg.text
+                    )}
                   </div>
-                  {/* Show sources if present and this is a bot message */}
+                  {/* Show sources if present and this is a bot message, with toggle */}
                   {msg.sender === "bot" && Array.isArray(msg.sources) && msg.sources.length > 0 && (
-                    <div className="mt-2 p-2 bg-gray-100 rounded">
-                      <h4 className="font-semibold text-xs text-gray-600">Retrieved Context:</h4>
-                      <ul className="list-disc pl-4 mt-1">
-                        {msg.sources.map((source: Source, sidx: number) => (
-                          <li key={sidx} className="text-xs text-gray-500 italic p-1">
-                            <div>"{source.text}"</div>
-                            <div>
-                              <span className="font-semibold">Source:</span> {source.doc_name}
-                              {source.doc_url && (
-                                <>
-                                  {" | "}
-                                  <a href={source.doc_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View Document</a>
-                                </>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="text-xs text-blue-700 underline mb-1 focus:outline-none"
+                        title="Show or hide the retrieved context and source citations used to generate this answer."
+                        onClick={() => setShowSources((prev) => ({ ...prev, [idx]: !prev[idx] }))}
+                      >
+                        {showSources[idx] ? "Hide Sources" : "Show Sources"}
+                      </button>
+                      {showSources[idx] && (
+                        <div className="p-2 bg-gray-100 rounded">
+                          <h4 className="font-semibold text-xs text-gray-600">Retrieved Context:</h4>
+                          <ul className="list-disc pl-4 mt-1">
+                            {msg.sources.map((source: Source, sidx: number) => (
+                              <li key={sidx} className="text-xs text-gray-500 italic p-1">
+                                <div>"{source.text}"</div>
+                                <div>
+                                  <span className="font-semibold">Source:</span> {source.doc_name}
+                                  {source.doc_url && (
+                                    <>
+                                      {" | "}
+                                      <a href={source.doc_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View Document</a>
+                                    </>
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -267,11 +240,12 @@ export default function Home() {
           </div>
           <form
             onSubmit={handleSend}
-            className="flex items-center border-t p-2 gap-2"
+            className="flex items-center border-t p-4 gap-2 bg-white"
+            style={{ minHeight: '64px' }}
           >
             <input
               type="text"
-              className="flex-1 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
+              className="flex-1 rounded-2xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500 bg-gray-50"
               placeholder="Type your message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -280,7 +254,7 @@ export default function Home() {
             />
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition disabled:opacity-60"
+              className="bg-blue-600 text-white px-6 py-2 rounded-2xl font-semibold hover:bg-blue-700 transition disabled:opacity-60"
               disabled={sending}
             >
               {sending ? (

@@ -1,5 +1,3 @@
-
-
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -74,10 +72,15 @@ async def chat_endpoint(request: ChatRequest):
         matches = query_index(request.question, top_k=3, return_metadata=True)
         context = "\n".join([m["metadata"]["text"] for m in matches])
         prompt = (
-            f"Based on the following information: {context}\n"
-            f"please provide an answer to this question: {request.question}\n"
-            "Also format the response to be in a presentable way for a chat application in normal text not markdown format"
-            "If the information is not sufficient, say that you cannot answer."
+            "You are AgroBuddy, a helpful AI agricultural assistant. "
+            "Based *only* on the context provided, answer the user's question. "
+            "Format your answer clearly using Markdown for readability. "
+            "Use bullet points, bold text, and paragraphs where helpful. "
+            "Add an extra blank line after each heading, list, or paragraph for clarity. "
+            "Do not make up information.\n\n"
+            f"--- CONTEXT ---\n{context}\n\n"
+            f"--- QUESTION ---\n{request.question}\n\n"
+            "--- ANSWER (in Markdown) ---"
         )
         sources = [m["metadata"] for m in matches]
         if not GOOGLE_API_KEY:
