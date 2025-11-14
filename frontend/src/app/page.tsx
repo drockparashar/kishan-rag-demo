@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 
 type Source = {
@@ -16,6 +16,8 @@ type Message = {
 };
 
 export default function Home() {
+  // Ref for auto-scroll
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const [showSources, setShowSources] = useState<{ [key: number]: boolean }>({});
   // File upload state
   const [uploading, setUploading] = useState(false);
@@ -28,6 +30,12 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
     { sender: "bot", text: "Hello! ask me anything about rice crop." },
   ]);
+    // Auto-scroll to bottom when messages change
+    useEffect(() => {
+      if (chatEndRef.current) {
+        chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }, [messages]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -180,7 +188,7 @@ export default function Home() {
 
         {/* Chat Section */}
         <section className="flex flex-col flex-1 w-full max-w-4xl h-full bg-white rounded-xl shadow mt-4 mb-4">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4" style={{scrollBehavior: 'smooth'}}>
             {messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -237,6 +245,8 @@ export default function Home() {
                 </div>
               </div>
             ))}
+            {/* Auto-scroll anchor */}
+            <div ref={chatEndRef} />
           </div>
           <form
             onSubmit={handleSend}

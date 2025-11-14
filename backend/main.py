@@ -69,7 +69,7 @@ async def upload_pdf(file: UploadFile = File(...), doc_url: str = Form(...)):
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
-        matches = query_index(request.question, top_k=3, return_metadata=True)
+        matches = query_index(request.question, top_k=5, return_metadata=True)
         context = "\n".join([m["metadata"]["text"] for m in matches])
         prompt = (
             "You are AgroBuddy, a helpful AI agricultural assistant. "
@@ -77,7 +77,7 @@ async def chat_endpoint(request: ChatRequest):
             "Format your answer clearly using Markdown for readability. "
             "Use bullet points, bold text, and paragraphs where helpful. "
             "Add an extra blank line after each heading, list, or paragraph for clarity. "
-            "Do not make up information.\n\n"
+            "Do not make up information. Keep the response size adequate for conversation along with markdown text and heading highlights and lists for visual seperation.\n\n"
             f"--- CONTEXT ---\n{context}\n\n"
             f"--- QUESTION ---\n{request.question}\n\n"
             "--- ANSWER (in Markdown) ---"
