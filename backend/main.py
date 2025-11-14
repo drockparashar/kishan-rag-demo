@@ -35,21 +35,34 @@ class ChatRequest(BaseModel):
 
 from fastapi import Form
 
+
 @app.post("/api/upload")
 async def upload_pdf(file: UploadFile = File(...), doc_url: str = Form(...)):
     if not file.filename.lower().endswith('.pdf'):
         return JSONResponse(status_code=400, content={"error": "Only PDF files are supported."})
     try:
         pdf_reader = pypdf.PdfReader(file.file)
-        text = "\n".join(page.extract_text() or "" for page in pdf_reader.pages)
-        num_chunks = upsert_document(
-            text,
-            metadata={
-                "doc_name": file.filename,
-                "doc_url": doc_url
-            }
-        )
-        return {"message": f"PDF uploaded and {num_chunks} chunks upserted to Pinecone."}
+        total_chunks = 0
+        # Process in batches of N pages to avoid memory issues
+        batch_pages = 20
+        num_pages = len(pdf_reader.pages)
+        for start in range(0, num_pages, batch_pages):
+            end = min(start + batch_pages, num_pages)
+            print(f"Processing pages {start+1} to {end} of {num_pages}...")
+            text = "\n".join(pdf_reader.pages[i].extract_text() or "" for i in range(start, end))
+            if text.strip():
+                print(f"Upserting batch for pages {start+1}-{end}...")
+                num = upsert_document(
+                    text,
+                    metadata={
+                        "doc_name": file.filename,
+                        "doc_url": doc_url
+                    },
+                    chunk_offset=total_chunks
+                )
+                total_chunks += num
+                print(f"Batch upserted: {num} chunks (total so far: {total_chunks})")
+        return {"message": f"PDF uploaded and {total_chunks} chunks upserted to Pinecone."}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

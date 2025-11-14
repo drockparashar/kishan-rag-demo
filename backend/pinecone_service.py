@@ -41,26 +41,29 @@ def get_or_create_index():
 
 index = get_or_create_index()
 
-def upsert_document(text, metadata=None):
+def upsert_document(text, metadata=None, batch_size=50, chunk_offset=0):
     # Accept doc_name and doc_url in metadata
     doc_name = metadata.get("doc_name") if metadata else None
     doc_url = metadata.get("doc_url") if metadata else None
     chunks = text_splitter.split_text(text)
-    embeddings = model.encode(chunks).tolist()
-    ids = [f"chunk-{i}" for i in range(len(chunks))]
-    to_upsert = []
-    for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-        chunk_metadata = {
-            "text": chunk,
-            "chunk_index": i
-        }
-        if doc_name:
-            chunk_metadata["doc_name"] = doc_name
-        if doc_url:
-            chunk_metadata["doc_url"] = doc_url
-        to_upsert.append((ids[i], emb, chunk_metadata))
-    index.upsert(vectors=to_upsert)
-    return len(chunks)
+    total_chunks = len(chunks)
+    for batch_start in range(0, total_chunks, batch_size):
+        batch_chunks = chunks[batch_start:batch_start+batch_size]
+        embeddings = model.encode(batch_chunks).tolist()
+        ids = [f"chunk-{chunk_offset + batch_start + i}" for i in range(len(batch_chunks))]
+        to_upsert = []
+        for i, (chunk, emb) in enumerate(zip(batch_chunks, embeddings)):
+            chunk_metadata = {
+                "text": chunk,
+                "chunk_index": chunk_offset + batch_start + i
+            }
+            if doc_name:
+                chunk_metadata["doc_name"] = doc_name
+            if doc_url:
+                chunk_metadata["doc_url"] = doc_url
+            to_upsert.append((ids[i], emb, chunk_metadata))
+        index.upsert(vectors=to_upsert)
+    return total_chunks
 
 def query_index(query, top_k=3, return_metadata=False):
     query_emb = model.encode([query])[0].tolist()
