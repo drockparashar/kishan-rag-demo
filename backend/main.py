@@ -3,7 +3,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from dotenv import load_dotenv
 import os
 import pypdf
@@ -54,10 +54,10 @@ async def upload_pdf(file: UploadFile = File(...), doc_url: str = Form(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
-        # Get full metadata for each chunk
         matches = query_index(request.question, top_k=3, return_metadata=True)
         context = "\n".join([m["metadata"]["text"] for m in matches])
         prompt = (
@@ -66,10 +66,21 @@ async def chat_endpoint(request: ChatRequest):
             "Also format the response to be in a presentable way for a chat application in normal text not markdown format"
             "If the information is not sufficient, say that you cannot answer."
         )
+        sources = [m["metadata"] for m in matches]
         if not GOOGLE_API_KEY:
-            return {"answer": "[LLM not configured] Retrieved context: " + context, "sources": [m["metadata"] for m in matches]}
+            def fallback_stream():
+                yield "[LLM not configured] Retrieved context: " + context
+                yield "\n[[SOURCES]]" + JSONResponse(content={"sources": sources}).body.decode()
+            return StreamingResponse(fallback_stream(), media_type="text/plain")
+
         model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(prompt)
-        return {"answer": response.text, "sources": [m["metadata"] for m in matches]}
+        def stream_generator():
+            response_stream = model.generate_content(prompt, stream=True)
+            for chunk in response_stream:
+                if chunk.text:
+                    yield chunk.text
+            # At the end, send a marker and the sources as JSON
+            yield "\n[[SOURCES]]" + JSONResponse(content={"sources": sources}).body.decode()
+        return StreamingResponse(stream_generator(), media_type="text/plain")
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})

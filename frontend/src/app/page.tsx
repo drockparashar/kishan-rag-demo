@@ -73,12 +73,75 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not get an answer");
+      if (!res.body) throw new Error("No response body");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let botMsg = "";
+      let sources: Source[] | undefined = undefined;
+      let buffer = "";
+      // Add a placeholder bot message
       setMessages((msgs) => [
         ...msgs,
-        { sender: "bot", text: data.answer, sources: data.sources },
+        { sender: "bot", text: "" },
       ]);
+      // Helper to append text one character at a time
+      const appendCharByChar = async (text: string) => {
+        for (let i = 0; i < text.length; i++) {
+          botMsg += text[i];
+          setMessages((msgs) => {
+            const updated = [...msgs];
+            for (let j = updated.length - 1; j >= 0; j--) {
+              if (updated[j].sender === "bot") {
+                updated[j] = { ...updated[j], text: botMsg };
+                break;
+              }
+            }
+            return updated;
+          });
+          // Small delay for effect
+          await new Promise((resolve) => setTimeout(resolve, 12));
+        }
+      };
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        const chunk = value ? decoder.decode(value) : "";
+        buffer += chunk;
+        // Check for the sources marker
+        const marker = "[[SOURCES]]";
+        const markerIdx = buffer.indexOf(marker);
+        if (markerIdx !== -1) {
+          // Everything before marker is the answer
+          const answerPart = buffer.slice(0, markerIdx);
+          await appendCharByChar(answerPart);
+          // Everything after marker is the sources JSON
+          const sourcesJson = buffer.slice(markerIdx + marker.length);
+          try {
+            const parsed = JSON.parse(sourcesJson);
+            sources = parsed.sources;
+          } catch (e) {
+            sources = undefined;
+          }
+          buffer = "";
+          done = true;
+        } else {
+          // Stream out the buffer char by char
+          await appendCharByChar(buffer);
+          buffer = "";
+        }
+      }
+      // After stream ends, update the last bot message with sources
+      setMessages((msgs) => {
+        const updated = [...msgs];
+        for (let i = updated.length - 1; i >= 0; i--) {
+          if (updated[i].sender === "bot") {
+            updated[i] = { ...updated[i], text: botMsg, sources };
+            break;
+          }
+        }
+        return updated;
+      });
     } catch (err: any) {
       setMessages((msgs) => [
         ...msgs,
